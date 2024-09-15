@@ -63,7 +63,7 @@ library
                    ,  Data.CreditCard.Internal
 
     -- Modules included in this library but not exported.
-    -- other-modules:
+    -- other-modules: 
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -76,6 +76,7 @@ library
           , cassava
           , country
           , data-default
+          , io-memoize
           , mtl
           , time
           , say
@@ -111,5 +112,7 @@ test-suite CreditCard-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.18.2.1,
-        CreditCard
+        base ^>=4.18.2.1
+        , doctest
+        , cabal-doctest
+        , CreditCard

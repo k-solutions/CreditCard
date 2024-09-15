@@ -44,6 +44,12 @@ data CreditCard = MkCreditCard
 
 -- | Smart constuctor to CreditCard with input is (CardNumber, CardName,
 -- ValidDate, CCV)
+--
+-- Examples:
+--
+-- >>> mkCreditCard ("30569309025904", "TestFirs TestLast", "06/29", "123")
+-- Nothing
+--
 mkCreditCard :: (ByteString, ByteString, ByteString, ByteString) -> Maybe CreditCard
 mkCreditCard (numberInp, nameInp, dateInp, ccvInp)
   =   MkCreditCard
@@ -54,14 +60,25 @@ mkCreditCard (numberInp, nameInp, dateInp, ccvInp)
   <*> Nothing
 
 -- | CardName constructor
+--
+-- Examples:
+--
+-- >>>
+-- mkCardName "First Last"
+-- Just (MkCardName "First  Last")
 mkCardName :: ByteString -> Maybe CardName
 mkCardName nameInp
   = case Ch.split ' ' nameInp of
-      [firstName, midName, lastName] -> Just $ MkCardName $ mconcat [firstName, " ", midName, " ", lastName]
-      [fstName, lstName]         -> Just $ MkCardName $ mconcat [fstName, " ", lstName]
+      [fstName, midName, lstName] | fstName /= "" && lstName /= "" -> Just $ MkCardName $ mconcat [fstName, " ", midName, " ", lstName]
+      [fstName, lstName] | fstName /= "" && lstName /= ""  -> Just $ MkCardName $ mconcat [fstName, " ", lstName]
       _                  -> Nothing
 
 -- | Card CCV  smart constructor
+--
+-- Examples:
+--
+-- >>> mkCCV "123"
+-- Just MkCCV "123"
 mkCCV :: ByteString -> Maybe CCV
 mkCCV inp = MkCCV . fst <$> Ch.readInt inp
 

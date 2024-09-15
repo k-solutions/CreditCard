@@ -19,11 +19,10 @@ module Data.CreditCard.Internal
 import           Control.Monad.IO.Class
 import           Control.Monad.Reader
 import           Country                  (Country)
-import           Data.ByteString          (ByteString, empty, hGetSome)
+import           Data.ByteString          (ByteString)
 import qualified Data.ByteString.Char8    as Ch
 import qualified Data.ByteString.Lazy     as BL
-import           Data.Csv                 (FromField, FromNamedRecord,
-                                           FromRecord, Parser)
+import           Data.Csv                 (FromField, FromNamedRecord)
 import qualified Data.Csv                 as CSV
 import           Data.Default
 import           Data.IORef
@@ -35,7 +34,7 @@ import           Data.Vector              (Vector)
 import qualified Data.Vector              as V
 import           GHC.Generics
 import           Say
-import           System.IO
+import           System.IO.Memoize        (eagerlyOnce)
 
 -- | Data types
 
@@ -151,19 +150,21 @@ initBinDb :: (Monad m, MonadIO m) => FilePath -> m (Maybe BinDb)
 initBinDb csvFile = do
     csvData <- liftIO $ BL.readFile csvFile
     case CSV.decodeByName csvData of
-       Left err     -> pure Nothing   --- Trie.empty
+       Left _err     -> pure Nothing   --- Trie.empty
        Right (_, v) -> do
           r <- liftIO $ newIORef $ Trie.fromList $ V.toList $ V.foldMap toCardMetaTpl v
           pure $ Just r
 
 searchBinDb :: (MonadIO m, MonadReader Env m) => ByteString -> m (Maybe CardMeta)
 searchBinDb src = do
-    mbIOTrie <- asks envBinDb
-    case mbIOTrie of
+    env <- ask -- s envBinDb
+    case env.envBinDb of
       Just ioTrie -> do
         trie <- liftIO $ readIORef ioTrie
         pure $ Trie.lookup src trie
-      Nothing -> pure Nothing
+      Nothing -> do
+        _ <- liftIO $ eagerlyOnce $ liftIO $ initBinDb env.envCardBinFilepath
+        searchBinDb src          -- pure Nothing
 
 --- Private API ---
 
@@ -191,9 +192,3 @@ fromCardSchemaField = \case
     "discover"    -> Discover
     "unionpay"    -> ChinaUnionPaid
     _             -> Bankcard
-
-feed :: (ByteString -> Parser BinData) -> Handle -> IO (Parser BinData)
-feed k csvFileHdl = do
-   hIsEOF csvFileHdl >>= \case
-    True  -> pure $ k empty
-    False -> k <$> hGetSome csvFileHdl 4096
