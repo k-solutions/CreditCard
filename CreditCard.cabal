@@ -60,10 +60,10 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Data.CreditCard
-                   ,  Data.CreditCard.Internal
+    --             ,  Data.CreditCard.Internal
 
     -- Modules included in this library but not exported.
-    -- other-modules: 
+    other-modules: Data.CreditCard.Internal 
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -81,6 +81,8 @@ library
           , time
           , say
           , vector
+          , validation
+          , word8
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -113,6 +115,14 @@ test-suite CreditCard-test
     -- Test dependencies.
     build-depends:
         base ^>=4.18.2.1
-        , doctest
+        , tasty
+        , tasty-golden
+        , tasty-hunit
         , cabal-doctest
+        , filepath
+        , bytestring
+        , vector
+        , cassava
+        , bytestring-trie
+        , mtl
         , CreditCard

@@ -19,7 +19,7 @@
             hixProject =
               final.haskell-nix.hix.project {
                 src = ./.;
-                # compiler-nix-name = "ghc96";
+                compiler-nix-name = "ghc96";
                 evalSystem = "x86_64-linux";
               };
           })

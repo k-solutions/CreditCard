@@ -11,9 +11,12 @@ module Data.CreditCard.Internal
 , CardMeta(..)
 , CardSchema(..)
 , CCV(..)
+, Env (..)
 , ValidityDate
+, setEnv
 , initBinDb
 , searchBinDb
+, def
 ) where
 
 import           Control.Monad.IO.Class
@@ -26,8 +29,7 @@ import           Data.Csv                 (FromField, FromNamedRecord)
 import qualified Data.Csv                 as CSV
 import           Data.Default
 import           Data.IORef
-import           Data.Time.Calendar       (Year)
-import           Data.Time.Calendar.Month (Month (..))
+import           Data.Time.Calendar       (Year, MonthOfYear)
 import           Data.Trie                (Trie)
 import qualified Data.Trie                as Trie
 import           Data.Vector              (Vector)
@@ -38,19 +40,19 @@ import           System.IO.Memoize        (eagerlyOnce)
 
 -- | Data types
 
-data Env = MkEnv                                                -- ^ Env for the Credit Card wrapping application
-         { envLog             :: !(ByteString -> IO ())         -- ^ Env log function
-         , envFilepath        :: !(Maybe FilePath)              -- ^ logfile filepath
-         , envCardBinFilepath :: !FilePath                      -- ^ Bin / IIN numbers CSV filepath
-         , envBinDb           :: !(Maybe BinDb)                 -- ^ IORef into in memory BinDb
+data Env = MkEnv                                              -- ^ Env for the Credit Card wrapping application
+         { logger        :: !(ByteString -> IO ())       -- ^ Env log function
+         , logFilepath   :: !(Maybe FilePath)            -- ^ logfile filepath
+         , binDbFilepath :: !FilePath                    -- ^ Bin / IIN numbers CSV filepath
+         , binDb         :: !(Maybe BinDb)               -- ^ IORef into in memory BinDb
          }
          deriving (Generic)
 
-instance Default Env where
-    def = MkEnv { envLog = sayShow
-                , envFilepath = Nothing
-                , envCardBinFilepath = "data/data/"
-                , envBinDb = Nothing
+instance Default Env where 
+    def = MkEnv { logger = sayShow
+                , logFilepath = Nothing
+                , binDbFilepath = "data/ranges.csv"
+                , binDb = Nothing
                 }
 
 -- | Card Data type definitions --
@@ -60,7 +62,7 @@ newtype CCV = MkCCV Int deriving Eq
 instance Show CCV where
     show _ = "***"
 
-type ValidityDate = (Month, Year)
+type ValidityDate = (MonthOfYear, Year)
 
 data CardSchema = AmEx
                 | Bankcard
@@ -144,9 +146,16 @@ instance FromNamedRecord BinData where
 
 type BinDb = IORef (Trie CardMeta)
 
+-- | A default environment 
+setEnv :: MonadIO m => Env -> m Env
+setEnv env = do
+    ioBinDb <- liftIO $ eagerlyOnce $ initBinDb env.binDbFilepath
+    mbBinDb <- liftIO ioBinDb
+    pure $ env { binDb = mbBinDb }  
+
 -- | Initialize a BinDb Trie from a csv data file
 --  NOTE: To be used with MonadReader and IORef
-initBinDb :: (Monad m, MonadIO m) => FilePath -> m (Maybe BinDb)
+initBinDb :: MonadIO m => FilePath -> m (Maybe BinDb)
 initBinDb csvFile = do
     csvData <- liftIO $ BL.readFile csvFile
     case CSV.decodeByName csvData of
@@ -157,14 +166,12 @@ initBinDb csvFile = do
 
 searchBinDb :: (MonadIO m, MonadReader Env m) => ByteString -> m (Maybe CardMeta)
 searchBinDb src = do
-    env <- ask -- s envBinDb
-    case env.envBinDb of
+    mbBinDbRef <- asks binDb
+    case mbBinDbRef of
       Just ioTrie -> do
         trie <- liftIO $ readIORef ioTrie
         pure $ Trie.lookup src trie
-      Nothing -> do
-        _ <- liftIO $ eagerlyOnce $ liftIO $ initBinDb env.envCardBinFilepath
-        searchBinDb src          -- pure Nothing
+      Nothing -> pure Nothing
 
 --- Private API ---
 
