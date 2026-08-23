@@ -63,7 +63,11 @@ library
     --             ,  Data.CreditCard.Internal
 
     -- Modules included in this library but not exported.
-    other-modules: Data.CreditCard.Internal 
+    other-modules:
+        Data.CreditCard.Internal
+      , Data.CreditCard.Internal.Types
+      , Data.CreditCard.Internal.Errors
+      , Data.CreditCard.Internal.Helpers
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -118,6 +122,8 @@ test-suite CreditCard-test
         , tasty
         , tasty-golden
         , tasty-hunit
+        , tasty-quickcheck
+        , QuickCheck
         , cabal-doctest
         , filepath
         , bytestring
