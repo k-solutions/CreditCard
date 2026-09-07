@@ -3,6 +3,18 @@
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE StrictData            #-}
 
+{-|
+Module      : Data.CreditCard
+Description : Credit card validation, order-independent parsing, and BIN lookup
+Copyright   : (c) Hristo Kochev, 2026
+License     : BSD-3-Clause
+Maintainer  : h.l.kochev@gmail.com
+Stability   : experimental
+
+Main entry point for the CreditCard library. Provides domain models for credit cards,
+smart constructors, order-independent field extraction from token lists, masked @Show@
+representations, and BIN/IIN range database integration.
+-}
 module Data.CreditCard
   ( CreditCard (..)
   , RawCreditCard (..)
@@ -27,6 +39,8 @@ module Data.CreditCard
   , mkCardNumber
   , create
   , createCreditCard
+  , parseCardValidations
+  , parseCardValidation
   , searchBinDb
   , setEnv
   , checksumCardNumber
@@ -56,9 +70,11 @@ create :: (MonadIO m, MonadReader Env m)
        => [ByteString]
        -> m (Validation (NonEmpty (CardError ByteString)) CreditCard)
 create inputs = do
-  let (vCardNmb, vCardName, vValidDate, vCCV, _extras) = parseCardValidations inputs
-  vCardMeta <- mapM (\cardNmb -> searchBinDb cardNmb.bin) vCardNmb
-  pure $ MkCreditCard <$> vCardNmb <*> vCardName <*> vValidDate <*> vCCV <*> vCardMeta
+  let (vCard, _extras) = parseCardValidations inputs
+  mapM (\card -> do
+    mbMeta <- searchBinDb card.number.bin
+    pure card { metaData = mbMeta }
+    ) vCard
 
 -- | Backward-compatible alias for create
 createCreditCard :: (MonadIO m, MonadReader Env m)

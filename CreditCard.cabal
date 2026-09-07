@@ -23,10 +23,13 @@ name:               CreditCard
 version:            0.1.0.0
 
 -- A short (one-line) description of the package.
-synopsis:           Credit Card types and smart constructors
+synopsis:           Credit Card validation, types, order-independent parsing, and BIN database lookup
 
 -- A longer description of the package.
--- description:
+description:
+    A robust Haskell library for validating and constructing Credit Card representations
+    with order-independent token parsing, Luhn checksum validation, privacy masking,
+    BIN/IIN range database lookup, and comprehensive error reporting via the 'Validation' applicative.
 
 -- The license under which the package is released.
 license:            BSD-3-Clause
@@ -46,7 +49,9 @@ category:           Data
 build-type:         Simple
 
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
-extra-doc-files:    CHANGELOG.md
+extra-doc-files:
+    README.md
+  , CHANGELOG.md
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
 -- extra-source-files:
@@ -68,6 +73,7 @@ library
       , Data.CreditCard.Internal.Types
       , Data.CreditCard.Internal.Errors
       , Data.CreditCard.Internal.Helpers
+      , Data.CreditCard.Internal.Parser
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -131,4 +137,5 @@ test-suite CreditCard-test
         , cassava
         , bytestring-trie
         , mtl
+        , validation
         , CreditCard

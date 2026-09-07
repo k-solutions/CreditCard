@@ -7,6 +7,7 @@ module Data.CreditCard.Internal
   ( module Data.CreditCard.Internal.Types
   , module Data.CreditCard.Internal.Errors
   , module Data.CreditCard.Internal.Helpers
+  , module Data.CreditCard.Internal.Parser
   , setEnv
   , initBinDb
   , searchBinDb
@@ -20,6 +21,7 @@ import qualified Data.ByteString.Lazy             as BL
 import qualified Data.Csv                         as CSV
 import           Data.CreditCard.Internal.Errors
 import           Data.CreditCard.Internal.Helpers
+import           Data.CreditCard.Internal.Parser
 import           Data.CreditCard.Internal.Types
 import           Data.IORef
 import qualified Data.Trie                        as Trie

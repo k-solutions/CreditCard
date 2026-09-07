@@ -11,9 +11,10 @@ import           Data.Csv                      as Csv
 import           Data.Int                      (Int8)
 import           Data.List.NonEmpty            (NonEmpty (..))
 import           Data.String                   (IsString (fromString))
+import           Data.Validation               (Validation (..))
 import qualified Data.Vector                   as V
 import           System.FilePath               (replaceExtension, takeBaseName)
-import           Test.QuickCheck
+import           Test.QuickCheck               hiding (Failure, Success)
 import           Test.Tasty                    (TestTree, defaultMain, testGroup)
 import           Test.Tasty.Golden             (findByExtension, goldenVsString)
 import           Test.Tasty.HUnit              (assertBool, testCase, (@?=))
@@ -230,80 +231,50 @@ unitTests = testGroup "Public API Unit Tests"
       , testCase "Invalid toNonEmptyTpl" $
           toNonEmptyTpl ([(4 :: Int8), 2, 6], [(2 :: Int8), 6]) @?= Nothing
       ]
+  , testGroup "Parser (parseCardValidations)"
+      [ testCase "Valid inputs produce Success CreditCard" $
+          case parseCardValidations ["4263982640269299", "John Doe", "12/2026", "123"] of
+            (Success cc, extras) -> do
+              cc.name @?= MkCardName "John Doe"
+              cc.validTo @?= (12, 2026)
+              cc.ccv @?= MkCCV 123
+              extras @?= []
+            (Failure _, _) -> assertBool "Should be Success" False
+      , testCase "Valid inputs with extra unparsed fields" $
+          case parseCardValidations ["4263982640269299", "John Doe", "12/2026", "123", "US", "USD"] of
+            (Success _, extras) -> extras @?= ["US", "USD"]
+            (Failure _, _)      -> assertBool "Should be Success" False
+      , testCase "Valid inputs in permuted order" $
+          case parseCardValidations ["12/2026", "123", "4263982640269299", "John Doe"] of
+            (Success cc, _) -> do
+              cc.name @?= MkCardName "John Doe"
+              cc.validTo @?= (12, 2026)
+            (Failure _, _) -> assertBool "Should be Success" False
+      , testCase "Invalid card number fails with CardNumberError" $
+          case parseCardValidations ["30569309025904", "John Doe", "12/2026", "123"] of
+            (Failure (CardNumberError "30569309025904" :| []), _) -> assertBool "" True
+            _ -> assertBool "Should fail with CardNumberError" False
+      , testCase "Invalid date fails with CardValidDateError" $
+          case parseCardValidations ["4263982640269299", "John Doe", "13/2026", "123"] of
+            (Failure (CardValidDateError "13/2026" :| []), _) -> assertBool "" True
+            _ -> assertBool "Should fail with CardValidDateError" False
+      ]
   , testGroup "Read instances"
       [ testGroup "Read RawCreditCard"
-          [ testCase "Read from [String] list" $
-              read "[\"4263982640269299\", \"John Doe\", \"12/2026\", \"123\"]" @?= MkRawCreditCard "4263982640269299" "John Doe" "12/2026" "123" []
-          , testCase "Read from [String] list with meta" $
-              read "[\"4263982640269299\", \"John Doe\", \"12/2026\", \"123\", \"US\", \"USD\"]" @?= MkRawCreditCard "4263982640269299" "John Doe" "12/2026" "123" ["US", "USD"]
-          , testCase "Read from 4-tuple" $
-              read "(\"4263982640269299\", \"John Doe\", \"12/2026\", \"123\")" @?= MkRawCreditCard "4263982640269299" "John Doe" "12/2026" "123" []
-          , testCase "Read from constructor" $
-              read "MkRawCreditCard \"4263982640269299\" \"John Doe\" \"12/2026\" \"123\" [\"US\"]" @?= MkRawCreditCard "4263982640269299" "John Doe" "12/2026" "123" ["US"]
-          , testCase "Read from record" $
+          [ testCase "Read from record" $
               read "MkRawCreditCard { number = \"4263982640269299\", name = \"John Doe\", validTo = \"12/2026\", ccv = \"123\", meta = [\"US\"] }" @?= MkRawCreditCard "4263982640269299" "John Doe" "12/2026" "123" ["US"]
           ]
-      , testGroup "Read CreditCard"
-          [ testCase "Read valid from list of strings" $
-              case (reads "[\"4263982640269299\", \"John Doe\", \"12/2026\", \"123\"]" :: [(CreditCard, String)]) of
-                [(cc, "")] -> cc @?= case mkCreditCard ["4263982640269299", "John Doe", "12/2026", "123"] of
-                                        Just expected -> expected
-                                        Nothing -> error "mkCreditCard should succeed"
-                _ -> assertBool "Should parse single CreditCard" False
-          , testCase "Read valid with extra meta" $
-              case (reads "[\"4263982640269299\", \"John Doe\", \"12/2026\", \"123\", \"US\"]" :: [(CreditCard, String)]) of
-                [(cc, "")] -> cc @?= case mkCreditCard ["4263982640269299", "John Doe", "12/2026", "123"] of
-                                        Just expected -> expected
-                                        Nothing -> error "mkCreditCard should succeed"
-                _ -> assertBool "Should parse single CreditCard" False
-          , testCase "Read invalid card number fails" $
-              case (reads "[\"30569309025904\", \"John Doe\", \"12/2026\", \"123\"]" :: [(CreditCard, String)]) of
-                [] -> assertBool "" True
-                _  -> assertBool "Should fail parsing invalid card number" False
-          , testCase "Read invalid date fails" $
-              case (reads "[\"4263982640269299\", \"John Doe\", \"13/2026\", \"123\"]" :: [(CreditCard, String)]) of
-                [] -> assertBool "" True
-                _  -> assertBool "Should fail parsing invalid date" False
-          , testCase "Read invalid name fails" $
-              case (reads "[\"4263982640269299\", \"SingleName\", \"12/2026\", \"123\"]" :: [(CreditCard, String)]) of
-                [] -> assertBool "" True
-                _  -> assertBool "Should fail parsing single name" False
-          , testCase "Read from record" $
-              case (reads "MkCreditCard { number = \"4263982640269299\", name = \"John Doe\", validTo = (12, 2026), ccv = 123, metaData = Nothing }" :: [(CreditCard, String)]) of
-                [(cc, "")] -> cc @?= case mkCreditCard ["4263982640269299", "John Doe", "12/2026", "123"] of
-                                        Just expected -> expected
-                                        Nothing -> error "mkCreditCard should succeed"
-                _ -> assertBool "Should parse record CreditCard" False
-          ]
       , testGroup "Read CardNumber"
-          [ testCase "Read from quoted string" $
-              read "\"4263982640269299\"" @?= MkCardNumber "426398" "2640269299"
-          , testCase "Read from bare digits" $
-              read "4263982640269299" @?= MkCardNumber "426398" "2640269299"
-          , testCase "Read from constructor" $
-              read "MkCardNumber \"426398\" \"2640269299\"" @?= MkCardNumber "426398" "2640269299"
-          , testCase "Read invalid card number fails" $
-              case (reads "12345" :: [(CardNumber, String)]) of
-                [] -> assertBool "" True
-                _  -> assertBool "Should fail parsing invalid CardNumber" False
+          [ testCase "Read from record" $
+              read "MkCardNumber { bin = \"426398\", accountId = \"2640269299\" }" @?= MkCardNumber "426398" "2640269299"
           ]
       , testGroup "Read CardName"
-          [ testCase "Read from quoted string" $
-              read "\"John Doe\"" @?= MkCardName "John Doe"
-          , testCase "Read from constructor" $
+          [ testCase "Read from constructor" $
               read "MkCardName \"John Doe\"" @?= MkCardName "John Doe"
           ]
       , testGroup "Read CCV"
-          [ testCase "Read from integer" $
-              read "123" @?= MkCCV 123
-          , testCase "Read from quoted string" $
-              read "\"123\"" @?= MkCCV 123
-          , testCase "Read from constructor" $
+          [ testCase "Read from constructor" $
               read "MkCCV 123" @?= MkCCV 123
-          , testCase "Read invalid fails" $
-              case (reads "abc" :: [(CCV, String)]) of
-                [] -> assertBool "" True
-                _  -> assertBool "Should fail parsing non-digits" False
           ]
       , testGroup "Read CardSchema"
           [ testCase "Read Visa" $
